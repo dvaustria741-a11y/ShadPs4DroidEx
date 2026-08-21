@@ -35,6 +35,7 @@ names=$(git config -f "$gitmodules" --get-regexp '\.path$' | awk '{print $1}' | 
 for name in $names; do
   path=$(git config -f "$gitmodules" --get "$name.path")
   url=$(git config -f "$gitmodules" --get "$name.url")
+  branch=$(git config -f "$gitmodules" --get "$name.branch" 2>/dev/null || true)
   dest="$shadps4_root/$path"
 
   if [[ -d "$dest" && -n "$(ls -A "$dest" 2>/dev/null)" ]]; then
@@ -52,8 +53,21 @@ for name in $names; do
     git -C "$dest" checkout --detach --force "$revision"
     echo "fetched $path @ $revision (pinned)"
   else
-    git clone --depth 1 "$url" "$dest" 2>&1 | tail -1
-    echo "fetched $path @ HEAD (unpinned)"
+    # .gitmodules pins a non-default branch for a handful of these (dear_imgui
+    # -> docking, ext-wepoll -> dist, sdl3 -> main, libusb -> shadps4, spdlog
+    # -> v2.x). Cloning without --branch silently grabs each repo's actual
+    # default branch instead, which for at least externals/libusb doesn't even
+    # have a CMakeLists.txt at its root (see CI run 87989520516: "does not
+    # contain a CMakeLists.txt file"). Also recurse: some of these have their
+    # own nested submodules (e.g. externals/sirit needs its own
+    # externals/SPIRV-Headers), which a flat non-recursive clone leaves empty.
+    if [[ -n "$branch" ]]; then
+      git clone --depth 1 --recurse-submodules --shallow-submodules --branch "$branch" "$url" "$dest" 2>&1 | tail -1
+      echo "fetched $path @ $branch (unpinned, pinned branch, recursive)"
+    else
+      git clone --depth 1 --recurse-submodules --shallow-submodules "$url" "$dest" 2>&1 | tail -1
+      echo "fetched $path @ HEAD (unpinned, recursive)"
+    fi
   fi
   # Deliberately NOT stripping .git here (a `rm -rf "$dest/.git"` used to run
   # at this point). At least externals/ffmpeg-core's own CMakeLists.txt does
