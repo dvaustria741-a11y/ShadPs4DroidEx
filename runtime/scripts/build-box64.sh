@@ -4,7 +4,7 @@ set -euo pipefail
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 source_dir="$project_root/runtime/sources/box64"
 build_dir="$project_root/runtime/build/box64"
-output="$project_root/app/src/main/jniLibs/arm64-v8a/libbox64.so"
+output="$project_root/external/shadps4/android/BachataS4/app/src/main/jniLibs/arm64-v8a/libbox64.so"
 entrypoint_patch="$project_root/runtime/patches/box64-winlator-glibc-entrypoint.patch"
 vulkan_qcom_patch="$project_root/runtime/patches/box64-vulkan-dispatch-tile-qcom.patch"
 adrenotools_vulkan_patch="$project_root/runtime/patches/box64-adrenotools-vulkan.patch"
