@@ -55,5 +55,15 @@ for name in $names; do
     git clone --depth 1 "$url" "$dest" 2>&1 | tail -1
     echo "fetched $path @ HEAD (unpinned)"
   fi
-  rm -rf "$dest/.git"
+  # Deliberately NOT stripping .git here (a `rm -rf "$dest/.git"` used to run
+  # at this point). At least externals/ffmpeg-core's own CMakeLists.txt does
+  # `git rev-parse --short HEAD` inside itself to pick which prebuilt FFmpeg
+  # binary to download; strip .git and that command walks up to the outer
+  # fork's .git instead, returning the fork's own commit SHA -- which has no
+  # matching FFmpeg prebuilt and fails CMake configure with "No FFMPEG
+  # prebuilt found with corresponding commit SHA" (see CI run 87985485956).
+  # None of these directories are committed to this repo (only
+  # CMakeLists.txt/aacdec/cmake-modules/gcn/renderdoc/stb are, at
+  # external/shadps4/externals/), so there's no git-hygiene reason to strip
+  # nested .git dirs -- they only exist for the lifetime of a CI checkout.
 done
