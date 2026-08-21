@@ -31,10 +31,33 @@ works in an APK sandbox as-is.
 - [x] `fex_guest_engine.{h,cpp}` and the `guest_cpu/` bridge exist and compile
       against real FEXCore APIs (ExecuteThread, HandleCallback, signal
       delivery, XMM/AVX reconstruction) — this is real, substantial code
-- [ ] **`core/fex` and `core/guest_cpu` are not yet referenced by any CMake
-      target in the vendored tree** — confirmed by grep, they're currently
-      orphaned source, not wired into a build. Real unstarted integration
-      work, not just missing CI plumbing.
+- [x] Another contributor pushed a real two-job CI pipeline (`native-runtime`
+      building box64 + FEXCore + shadPS4 for both x86_64 and arm64 in a Debian
+      container, `build` assembling the APK from its output) and a FEXCore
+      smoke-test build (`build-fexcore-smoke-aarch64.sh`) that genuinely
+      compiles `core/fex/fex_guest_engine.cpp` and `core/guest_cpu/*` against
+      real FEXCore — so the "orphaned, not wired into any build" status above
+      is now outdated for that specific build path (still not wired into the
+      *Android* CMake target BachataS4 ships, which is the one that matters
+      for a real APK — see below).
+- [x] Found and fixed the actual cause of that CI run's failure (run
+      87949737412): not the patch-apply noise (those failures are expected
+      and handled — the vendored shadPS4 source already contains these
+      changes, so `git apply --check`/`--reverse --check` correctly detects
+      that and skips; the printed "error: patch failed" lines are normal
+      `--check` diagnostic noise, not a fatal error). The real fatal error was
+      two levels down: `build-fexcore-smoke-aarch64.sh` needs
+      `runtime/probes/fexcore-smoke.cpp` and `fexcore-guest-harness.cpp`,
+      which I never vendored in the original merge — only `patches/`,
+      `scripts/`, `vendor-overrides/`, `vortek-protocol/`, `settings/`,
+      `locks/` came over, not `probes/`. Copied it over; `kotlin/` and
+      `qualification/` (also present upstream, not vendored) are confirmed
+      unreferenced by anything on the build path, so left out on purpose.
+- [ ] Still true: the CMake target BachataS4's Android app actually builds
+      (`core:runtime` in `android/BachataS4/core/runtime/src/main/cpp/
+      CMakeLists.txt`) does not reference `core/fex` or `core/guest_cpu` —
+      the smoke-test build above is a separate, standalone verification path,
+      not the app itself linking against it yet.
 - [ ] `externals/winlator-app` (needed by the native runtime CMake for
       `libadrenotools`) is not vendored in git — it's fetched at setup time by
       `runtime/scripts/vendor-winlator.sh` from a pinned upstream revision
