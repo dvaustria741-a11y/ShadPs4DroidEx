@@ -25,7 +25,7 @@ jobs:
       - name: Install NDK + CMake
         run: |
           yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install "ndk;27.2.12479018" "cmake;3.24.0"
+          sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
 
       # NOTE: known-incomplete, see PORTING_PLAN.md. vendor-winlator.sh's own path
       # assumptions don't match the checked-in tree yet, so this step is expected to
