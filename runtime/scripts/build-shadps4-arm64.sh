@@ -2,12 +2,15 @@
 set -euo pipefail
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+# This fork vendors shadPS4 (CMakeLists.txt, its own externals/, etc.) under
+# external/shadps4 rather than at the repo root — see PORTING_PLAN.md.
+shadps4_root="$project_root/external/shadps4"
 build_dir="$project_root/runtime/build/shadps4-arm64"
 stage_dir="$project_root/runtime/build/shadps4-arm64-stage"
 binary="$build_dir/shadps4"
 host_tools_dir="$project_root/runtime/build/host-tools"
 host_font_embed="$host_tools_dir/Dear_ImGui_FontEmbed"
-font_embed_source="$project_root/externals/dear_imgui/misc/fonts/binary_to_compressed_c.cpp"
+font_embed_source="$shadps4_root/externals/dear_imgui/misc/fonts/binary_to_compressed_c.cpp"
 
 for tool in cmake ninja clang clang++ readelf aarch64-linux-gnu-strip; do
   command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 1; }
@@ -19,9 +22,9 @@ mkdir -p "$host_tools_dir"
 clang++ -std=c++23 "$font_embed_source" -o "$host_font_embed"
 test -x "$host_font_embed"
 sdl_patch="$project_root/runtime/patches/sdl3-winlator-x11.patch"
-if git -C "$project_root/externals/sdl3" apply --check "$sdl_patch"; then
-  git -C "$project_root/externals/sdl3" apply "$sdl_patch"
-elif ! git -C "$project_root/externals/sdl3" apply --reverse --check "$sdl_patch"; then
+if git -C "$shadps4_root/externals/sdl3" apply --check "$sdl_patch"; then
+  git -C "$shadps4_root/externals/sdl3" apply "$sdl_patch"
+elif ! git -C "$shadps4_root/externals/sdl3" apply --reverse --check "$sdl_patch"; then
     echo "SDL3 Winlator patch does not apply cleanly (skipping...)" >&2
 fi
 
@@ -35,9 +38,9 @@ for bachata_patch in \
   "$project_root/runtime/patches/bachata-liverpool-stall-backoff.patch" \
   "$project_root/runtime/patches/bachata-fex-hle-unimplemented-returns-zero.patch"
 do
-  if git -C "$project_root" apply --check "$bachata_patch"; then
-    git -C "$project_root" apply "$bachata_patch"
-  elif ! git -C "$project_root" apply --reverse --check "$bachata_patch"; then
+  if git -C "$shadps4_root" apply --check "$bachata_patch"; then
+    git -C "$shadps4_root" apply "$bachata_patch"
+  elif ! git -C "$shadps4_root" apply --reverse --check "$bachata_patch"; then
     echo "Bachata patch $(basename "$bachata_patch") does not apply cleanly (skipping...)" >&2
   fi
 done
@@ -67,7 +70,7 @@ for library in libuuid.so.1 libudev.so.1; do
   ln -sfn "$source_library" "$arm64_link_dir/${library%.1}"
 done
 
-cmake -S "$project_root" -B "$build_dir" -G Ninja \
+cmake -S "$shadps4_root" -B "$build_dir" -G Ninja \
   -DCMAKE_SYSTEM_NAME=Linux \
   -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
   -DCMAKE_C_COMPILER=clang \

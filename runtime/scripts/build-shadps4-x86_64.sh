@@ -2,6 +2,9 @@
 set -euo pipefail
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+# This fork vendors shadPS4 (CMakeLists.txt, its own externals/, etc.) under
+# external/shadps4 rather than at the repo root — see PORTING_PLAN.md.
+shadps4_root="$project_root/external/shadps4"
 build_dir="$project_root/runtime/build/shadps4-x86_64"
 stage_dir="$project_root/runtime/build/shadps4-stage"
 binary="$build_dir/shadps4"
@@ -33,9 +36,9 @@ fi
 llvm_ar=$(command -v llvm-ar-21 || command -v llvm-ar)
 llvm_ranlib=$(command -v llvm-ranlib-21 || command -v llvm-ranlib)
 sdl_patch="$project_root/runtime/patches/sdl3-winlator-x11.patch"
-if git -C "$project_root/externals/sdl3" apply --check "$sdl_patch"; then
-  git -C "$project_root/externals/sdl3" apply "$sdl_patch"
-elif ! git -C "$project_root/externals/sdl3" apply --reverse --check "$sdl_patch"; then
+if git -C "$shadps4_root/externals/sdl3" apply --check "$sdl_patch"; then
+  git -C "$shadps4_root/externals/sdl3" apply "$sdl_patch"
+elif ! git -C "$shadps4_root/externals/sdl3" apply --reverse --check "$sdl_patch"; then
     echo "SDL3 Winlator patch does not apply cleanly (skipping...)" >&2
 fi
 
@@ -49,14 +52,14 @@ for bachata_patch in \
   "$project_root/runtime/patches/bachata-liverpool-stall-backoff.patch" \
   "$project_root/runtime/patches/bachata-fex-hle-unimplemented-returns-zero.patch"
 do
-  if git -C "$project_root" apply --check "$bachata_patch"; then
-    git -C "$project_root" apply "$bachata_patch"
-  elif ! git -C "$project_root" apply --reverse --check "$bachata_patch"; then
+  if git -C "$shadps4_root" apply --check "$bachata_patch"; then
+    git -C "$shadps4_root" apply "$bachata_patch"
+  elif ! git -C "$shadps4_root" apply --reverse --check "$bachata_patch"; then
     echo "Bachata patch $(basename "$bachata_patch") does not apply cleanly (skipping...)" >&2
   fi
 done
 
-cmake -S "$project_root" -B "$build_dir" -G Ninja \
+cmake -S "$shadps4_root" -B "$build_dir" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++ \
