@@ -7,7 +7,61 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Builds the native runtime bundle (runtime.zip + host jniLibs) that ships
+  # inside the APK when DOWNLOAD_RUNTIME=false (see build.gradle.kts). This is
+  # a real multi-stage native build: shadPS4 core for x86_64 and a from-scratch
+  # aarch64 cross-compile, box64 (host), the Vortek Vulkan client, staged into
+  # a glibc rootfs, then zipped. See PORTING_PLAN.md and
+  # runtime/scripts/build-runtime-debian.sh for the full chain. Must run
+  # inside Debian Trixie (install-debian-runtime-deps.sh hard-requires
+  # ID=debian) with the arm64 architecture enabled for cross dev packages.
+  native-runtime:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+    steps:
+      # actions/checkout needs git on PATH inside the container; debian:trixie
+      # doesn't ship it by default.
+      - name: Install git
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends git ca-certificates
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Debian Trixie cross-build dependencies
+        run: |
+          chmod +x runtime/scripts/install-debian-runtime-deps.sh
+          runtime/scripts/install-debian-runtime-deps.sh
+
+      - name: Build native runtime bundle
+        run: |
+          chmod +x runtime/scripts/*.sh
+          runtime/scripts/build-runtime-debian.sh
+
+      - name: Upload runtime.zip + staged assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-runtime-assets
+          path: external/shadps4/android/BachataS4/app/src/main/assets/runtime/
+          if-no-files-found: error
+
+      - name: Upload host jniLibs
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-runtime-jnilibs
+          path: external/shadps4/android/BachataS4/app/src/main/jniLibs/arm64-v8a/
+          if-no-files-found: error
+
   build:
+    needs: native-runtime
+    # The native runtime build is expected to need a few iterations to go
+    # green (see PORTING_PLAN.md open items — core/fex and core/guest_cpu
+    # aren't wired into any CMake target yet). Don't block the APK build
+    # (JNI libs baked in directly by Gradle, independent of runtime.zip)
+    # while that's shaking out.
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,11 +81,7 @@ jobs:
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
 
-      # NOTE: known-incomplete, see PORTING_PLAN.md. vendor-winlator.sh's own path
-      # assumptions don't match the checked-in tree yet, so this step is expected to
-      # need follow-up fixes rather than succeed outright on the first few runs.
       - name: Vendor Winlator/Vortek components
-        continue-on-error: true
         run: |
           chmod +x runtime/scripts/*.sh
           runtime/scripts/vendor-winlator.sh
@@ -48,6 +98,24 @@ jobs:
           chmod +x runtime/scripts/init-shadps4-externals.sh
           runtime/scripts/init-shadps4-externals.sh
 
+      # Downloaded from the native-runtime job above (runs.zip + host jniLibs
+      # produced by the Debian Trixie cross-build). Only present if that job
+      # succeeded -- continue-on-error below so a still-broken native build
+      # doesn't block validating the rest of the APK.
+      - name: Download native runtime bundle
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: native-runtime-assets
+          path: external/shadps4/android/BachataS4/app/src/main/assets/runtime/
+
+      - name: Download native runtime jniLibs
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: native-runtime-jnilibs
+          path: external/shadps4/android/BachataS4/app/src/main/jniLibs/arm64-v8a/
+
       - name: Grant execute permission for gradlew
         run: chmod +x external/shadps4/android/BachataS4/gradlew
 
@@ -61,3 +129,4 @@ jobs:
           name: shadps4droidex-debug
           path: external/shadps4/android/BachataS4/app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
+
