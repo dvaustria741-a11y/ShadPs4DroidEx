@@ -30,6 +30,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # actions/checkout inside a container job runs as a different UID than a
+      # normal runner, which trips git's dubious-ownership protection (git
+      # >=2.35.2) the moment shadPS4's own CMake shells out to `git` for
+      # version info (externals/ffmpeg-core/CMakeLists.txt does this to pick
+      # the matching FFMPEG prebuilt). Without this, that lookup silently
+      # returns an empty SHA and CMake fails with "No FFMPEG prebuilt found
+      # with corresponding commit SHA ()".
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Install Debian Trixie cross-build dependencies
         run: |
           chmod +x runtime/scripts/install-debian-runtime-deps.sh
