@@ -1,41 +1,78 @@
 # Porting Plan — shadPS4 on Android
 
-## Why this is hard
-shadPS4 emulates a PS4, which runs x86-64 (AMD Jaguan) code. On PC, shadPS4 runs that
-game code **directly on the host x86-64 CPU** — there is no CPU JIT in shadPS4 itself,
-it only intercepts PS4 syscalls/libraries. Android devices are ARM64, so PS4 game code
-cannot execute natively; it must be dynamically translated.
+## Where this stands
+This repo now vendors a much further-along shadPS4 Android runtime (internally
+named "BachataS4") pulled from `dev-Ali2008/onRps4-runtime`, combining two CPU
+translation paths rather than picking one:
 
-## Why we're not using FEX-Emu as-is
-[FEX-Emu](https://github.com/FEX-Emu/FEX) is a full **Linux userspace x86 emulator**:
-it hooks `binfmt_misc`, requires an x86-64 rootfs, and assumes glibc syscalls end-to-end.
-Android is Bionic-based and has no user-accessible `binfmt_misc` without root — FEX's
-normal install/execution model does not function in a standard APK sandbox.
+- **FEXCore bridge** — `external/shadps4/src/core/fex/` +
+  `external/shadps4/src/core/guest_cpu/`. Translates x86-64 PS4 game code to
+  ARM64 in-process, with syscalls trapped back into shadPS4's own PS4
+  library/linker layer instead of FEX's Linux syscall path — this is why FEX
+  can't just be used "as installed" (see below).
+- **Box64 path** — `runtime/patches/box64-*.patch`, a Kotlin
+  `Box64EmulatorRuntime`, and a Winlator-style glibc userland (via a vendored,
+  pinned Winlator/Vortek stack for X11/GPU/audio plumbing). This is the same
+  general approach Winlator itself uses to run x86 Windows software on Android.
 
-## Chosen approach: embed FEXCore only
-shadPS4 already implements its own PS4 syscall/library/linker layer (that's how any PS4
-emulator works on any host OS — it does not rely on the host kernel to service PS4
-syscalls). So the plan is:
+Both are present because they solve different halves of the problem — FEXCore
+for direct in-process JIT translation, Box64+Winlator's userland for a fuller
+Linux-compatible environment (glibc, X11, ALSA) some PS4 library shims may
+depend on. Which one (or both) ends up load-bearing is still open.
 
-- Pull in **FEXCore** (the x86-64→ARM64 block JIT, not the Linux-emulation frontend) as
-  a library dependency, built for `arm64-v8a` only.
-- shadPS4's existing linker/memory manager stays in control of PS4 process state.
-- Instead of executing translated code on a real x86-64 CPU, hand code blocks to FEXCore
-  for translation+execution, with syscalls trapped back into shadPS4's existing
-  `core/libraries` implementations rather than passed to FEXCore's Linux syscall path.
-- No `binfmt_misc`, no x86-64 rootfs, no glibc dependency at runtime.
+## Why not just install FEX/Box64 the normal way
+Both are built as full Linux-userspace x86 emulators (binfmt_misc hooks, a
+glibc x86-64 rootfs). Stock Android has no user-accessible binfmt_misc without
+root and is Bionic-based, not glibc — neither tool's normal execution model
+works in an APK sandbox as-is.
 
-## Current status
-- [x] Confirmed shadPS4 has no built-in CPU translation (checked `src/core`, `externals/`)
-- [x] Confirmed FEX's standard integration model is unusable on stock Android
-- [ ] FEXCore standalone (non-Linux-frontend) build for arm64-v8a — **not yet attempted**
-- [ ] Syscall trap plumbing between shadPS4 and FEXCore — **not started**
-- [ ] Vulkan/audio/input Android backends for shadPS4 — **not started**
-- [ ] Anything resembling a bootable game — **not started, likely a multi-month effort**
+## Honest status (verified by inspection, not by building)
+- [x] shadPS4 confirmed to have no native CPU JIT (source-level check)
+- [x] `fex_guest_engine.{h,cpp}` and the `guest_cpu/` bridge exist and compile
+      against real FEXCore APIs (ExecuteThread, HandleCallback, signal
+      delivery, XMM/AVX reconstruction) — this is real, substantial code
+- [ ] **`core/fex` and `core/guest_cpu` are not yet referenced by any CMake
+      target in the vendored tree** — confirmed by grep, they're currently
+      orphaned source, not wired into a build. Real unstarted integration
+      work, not just missing CI plumbing.
+- [ ] `externals/winlator-app` (needed by the native runtime CMake for
+      `libadrenotools`) is not vendored in git — it's fetched at setup time by
+      `runtime/scripts/vendor-winlator.sh` from a pinned upstream revision
+      (see `runtime/locks/components.lock.json`)
+- [ ] **The vendoring scripts' own path assumptions don't fully match the
+      structure they were extracted from** — e.g. `vendor-winlator.sh`
+      expects an `app/` directory directly under its computed project root,
+      which doesn't exist at that depth in what was actually checked in. This
+      needs fixing regardless of which repo hosts the code; it isn't
+      something this merge introduced.
+- [ ] No evidence I've generated or verified that any of this boots a game.
+      The upstream repo's own `runtime/evidence/sm8650/` logs (phase0/phase1
+      FEX instrumentation, an audio gate doc) suggest active device testing
+      in progress there, not a finished result.
+- [ ] Nothing in this session was actually built — no Android SDK/NDK
+      toolchain available here to verify compilation.
+
+## Attribution
+See `NOTICE.android-runtime.md` and `external/shadps4/LICENSES/` — Winlator
+and Vortek components are LGPL-2.1, Box64 is MIT, shadPS4 itself is
+GPL-2.0-or-later. Pinned revisions for every vendored component are in
+`runtime/locks/components.lock.json`.
 
 ## Repo layout
-- `external/shadps4/` — shadPS4 source (submodule)
-- `external/FEX/` — FEX-Emu source (submodule, only FEXCore is built)
-- `app/` — Android app module (JNI bridge + Activity shell)
-- `cpp/toolchain/` — CMake toolchain glue for NDK cross-compilation
-- `.github/workflows/` — CI: builds APK on every push, reports build status
+- `external/shadps4/` — vendored shadPS4 fork, including `src/core/fex`,
+  `src/core/guest_cpu`, and the nested `android/BachataS4` Gradle project
+  (the actual buildable app — kept at its original relative depth because its
+  CMake computes paths via a fixed number of `../` hops)
+- `runtime/` — patches, setup scripts, license/attribution locks for the
+  Box64/Winlator/Vortek/glibc/Mesa stack
+- `settings.gradle.kts` at repo root — points at
+  `external/shadps4/android/BachataS4` via `includeBuild` rather than
+  flattening it, for the same relative-path reason
+
+## Next real steps, in order
+1. Fix the vendoring scripts' path mismatch (or vendor `winlator-app` directly
+   instead of fetching it) so a clean checkout can actually produce a build.
+2. Wire `core/fex` + `core/guest_cpu` into an actual CMake target — they
+   compile as source but aren't linked into anything yet.
+3. Get one clean CI build (even if non-functional) to establish a baseline.
+4. Only then: attempt to actually execute PS4 code through the bridge.
