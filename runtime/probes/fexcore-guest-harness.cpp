@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-#include "../../src/core/fex/fex_guest_engine.h"
-#include "../../src/core/guest_cpu/fex_guest_cpu.h"
-#include "../../src/core/guest_cpu/fex_hle_bridge.h"
+#include "../../external/shadps4/src/core/fex/fex_guest_engine.h"
+#include "../../external/shadps4/src/core/guest_cpu/fex_guest_cpu.h"
+#include "../../external/shadps4/src/core/guest_cpu/fex_hle_bridge.h"
 
 #include <FEXCore/Core/X86Enums.h>
 
