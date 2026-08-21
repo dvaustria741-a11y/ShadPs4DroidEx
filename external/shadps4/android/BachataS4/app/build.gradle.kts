@@ -193,7 +193,16 @@ androidComponents.onVariants { variant ->
                         "for variant '${variant.name}': ${candidates.map { it.name }}"
                     )
             }
-            val script = File(rootProject.projectDir, "../../runtime/tests/verify-native-fixes.mjs")
+            // rootProject.projectDir is external/shadps4/android/BachataS4 in this fork
+            // (the BachataS4 app lives nested inside the vendored shadPS4 checkout), so
+            // reaching the fork's own top-level runtime/tests/ requires four levels up,
+            // not two: BachataS4 -> android -> shadps4 -> external -> repo root.
+            val script = File(rootProject.projectDir, "../../../../runtime/tests/verify-native-fixes.mjs")
+            if (!script.exists()) {
+                throw GradleException(
+                    "verifyNativeRuntimeFixes: verify script not found at ${script.absolutePath}"
+                )
+            }
             val process = ProcessBuilder("node", script.absolutePath, apk.absolutePath)
                 .inheritIO()
                 .start()
