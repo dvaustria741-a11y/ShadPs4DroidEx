@@ -204,11 +204,17 @@ androidComponents.onVariants { variant ->
                 )
             }
             val process = ProcessBuilder("node", script.absolutePath, apk.absolutePath)
-                .inheritIO()
+                .redirectErrorStream(true)
                 .start()
+            val scriptOutput = process.inputStream.bufferedReader().readText()
             val exit = process.waitFor()
+            // Print unconditionally (not just on failure) so passing runs still show
+            // what was verified. inheritIO() was previously used here, but the Gradle
+            // daemon does not forward inherited child-process stdio to the CI console,
+            // so failures were showing up as a bare "exit 1" with zero diagnostic output.
+            println(scriptOutput)
             if (exit != 0) throw GradleException(
-                "verifyNativeRuntimeFixes failed (exit $exit) for APK: ${apk.absolutePath}"
+                "verifyNativeRuntimeFixes failed (exit $exit) for APK: ${apk.absolutePath}\n$scriptOutput"
             )
         }
     }
