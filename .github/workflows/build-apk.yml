@@ -137,6 +137,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: shadps4droidex-debug
-          path: external/shadps4/android/BachataS4/app/build/outputs/apk/debug/*.apk
+          # The app has flavorDimensions("distribution") with playstore/fdroid
+          # flavors, so assembleDebug outputs land under a per-flavor subdir
+          # (outputs/apk/fdroid/debug/, outputs/apk/playstore/debug/), not
+          # flat under outputs/apk/debug/ — hence the recursive glob.
+          path: external/shadps4/android/BachataS4/app/build/outputs/apk/**/*.apk
           if-no-files-found: warn
 
