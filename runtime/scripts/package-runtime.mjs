@@ -156,8 +156,12 @@ const shadps4Stage = resolve(projectRoot, "runtime/build/shadps4-stage");
 const shadps4Arm64Stage = resolve(projectRoot, "runtime/build/shadps4-arm64-stage");
 const hostBox64Binary = resolve(projectRoot, "runtime/build/box64-host-stage/box64");
 const hostFexcoreSmoke = join(rootfs, "host/fexcore-smoke");
-const outputDir = resolve(process.argv[2] ?? resolve(projectRoot, "app/src/main/assets/runtime"));
-const nativeOutputDir = resolve(projectRoot, "app/src/main/jniLibs/arm64-v8a");
+// This fork nests the BachataS4 Gradle project inside the vendored shadPS4
+// checkout (external/shadps4/android/BachataS4), unlike the upstream
+// Bachata-S4 repo where it lives at android/BachataS4 off the project root.
+const appModuleDir = resolve(projectRoot, "external/shadps4/android/BachataS4/app");
+const outputDir = resolve(process.argv[2] ?? resolve(appModuleDir, "src/main/assets/runtime"));
+const nativeOutputDir = resolve(process.argv[3] ?? resolve(appModuleDir, "src/main/jniLibs/arm64-v8a"));
 
 const componentLock = JSON.parse(readFileSync(resolve(projectRoot, "runtime/locks/components.lock.json"), "utf8"));
 const revisions = Object.fromEntries(componentLock.components.map(({ name, revision }) => [name, revision]));
