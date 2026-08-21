@@ -1,0 +1,6 @@
+[submodule "external/shadps4"]
+	path = external/shadps4
+	url = https://github.com/shadps4-emu/shadPS4.git
+[submodule "external/FEX"]
+	path = external/FEX
+	url = https://github.com/FEX-Emu/FEX.git
