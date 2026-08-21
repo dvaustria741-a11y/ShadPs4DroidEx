@@ -37,6 +37,17 @@ jobs:
           runtime/scripts/vendor-winlator.sh
           runtime/scripts/vendor-vortek.sh
 
+      # external/shadps4 was vendored as a flat file copy, so its own .gitmodules
+      # (fmt, glslang, ffmpeg, plus fork-specific winlator-app/libdeflate/box64)
+      # were never checked out. Without this, CMake fails with "which is not an
+      # existing directory" for externals/winlator-app and externals/libdeflate
+      # (see run 87931460154). This is the manual equivalent of
+      # `git submodule update --init --recursive` for that tree.
+      - name: Populate shadPS4 externals
+        run: |
+          chmod +x runtime/scripts/init-shadps4-externals.sh
+          runtime/scripts/init-shadps4-externals.sh
+
       - name: Grant execute permission for gradlew
         run: chmod +x external/shadps4/android/BachataS4/gradlew
 

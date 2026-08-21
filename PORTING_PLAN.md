@@ -39,12 +39,17 @@ works in an APK sandbox as-is.
       `libadrenotools`) is not vendored in git — it's fetched at setup time by
       `runtime/scripts/vendor-winlator.sh` from a pinned upstream revision
       (see `runtime/locks/components.lock.json`)
-- [ ] **The vendoring scripts' own path assumptions don't fully match the
-      structure they were extracted from** — e.g. `vendor-winlator.sh`
-      expects an `app/` directory directly under its computed project root,
-      which doesn't exist at that depth in what was actually checked in. This
-      needs fixing regardless of which repo hosts the code; it isn't
-      something this merge introduced.
+- [x] `externals/winlator-app` fetched correctly by `runtime/scripts/vendor-winlator.sh`
+      — my earlier worry about a path mismatch there didn't materialize (verified
+      against real CI run 87931460154)
+- [x] Root cause of the actual CMake failure found and fixed: `external/shadps4`
+      was vendored as a flat file copy, so its own `.gitmodules` (~44 entries —
+      shadPS4's normal build deps, plus fork-specific `externals/winlator-app`,
+      `externals/libdeflate`, `runtime/sources/box64`) were never checked out.
+      `runtime/scripts/init-shadps4-externals.sh` now does the manual equivalent
+      of `git submodule update --init --recursive` for that tree, run in CI
+      before the CMake configure step. Verified locally against the real repo —
+      all three fork-specific paths land where CMake expects them.
 - [ ] No evidence I've generated or verified that any of this boots a game.
       The upstream repo's own `runtime/evidence/sm8650/` logs (phase0/phase1
       FEX instrumentation, an audio gate doc) suggest active device testing
